@@ -1,0 +1,48 @@
+
+import re
+ 
+import requests
+from bs4 import BeautifulSoup
+import xlsxwriter
+ 
+def save_excel(fin_result, tag_name, file_name):
+  book = xlsxwriter.Workbook(r'%s.xlsx' % file_name)
+  tmp = book.add_worksheet()
+  row_num = len(fin_result)
+  for i in range(1, row_num+2):
+    if i == 1:
+      tag_pos = 'A%s' % i
+      tmp.write_row(tag_pos, tag_name)
+    else:
+      con_pos = 'A%s' % i
+      content = fin_result[i-2] # -2是因为当i=2时下标应为0
+      tmp.write_row(con_pos, content)
+  book.close()
+ 
+def book(target_url):
+    books = []
+    book = requests.get(target_url)  # 使用requests返回网页的整体结构
+    soup = BeautifulSoup(book.text, 'lxml')  # 使用lxml作为解析器，返回一个Beautifulsoup对象
+    table = soup.findAll('table', {"width": "100%"})  # 找到其中所有width=100%的table标签），即找到所有的书
+    for item in table:  # 遍历table，一个item代表一本书
+        name = item.div.a.text.strip()  # 找到书名
+        r_name = name.replace('\n', '').replace(' ', '')  # 通过看网页的HTML结构，可以发现书名后是有换行以及空格的，将这些全部通过replace替换去除
+        url = item.div.a['href']  # 获取书的链接
+        info = item.find('p', {"class": "pl"}).text  # 获取书的信息
+        score = item.find('span', {"class": "rating_nums"}).text.strip()  # 获取分数
+        nums = item.find('span', {"class": "pl"}).text.strip()  # 获取评价人数
+        num = re.findall('(\d+)人评价', nums)[0]  # 通过正则取具体的数字
+        if item.find('span', {"class": "inq"}):  # 判断是否存在描述
+            desc = item.find('span', {"class": "inq"}).text.strip()
+        else:
+            desc = 'no description'
+        books.append([r_name, url, info, score, num, desc])  # 以元组存入列表
+    return books  # 返回一页的书籍
+ 
+result=[]
+for n in range(10):
+    url1 = 'https://book.douban.com/top250?start=' + str(n*25) #top250的网页，每页25本书，共10页，“start=”后面从0开始，以25递增
+    result+= book(url1)
+title_list=["书名","网址","作者/出版社/售价","评分","评论人数","介绍"]
+print(result)
+save_excel(result,title_list,"booktop250")
